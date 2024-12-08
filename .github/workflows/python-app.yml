@@ -45,3 +45,93 @@ jobs:
         poetry run task lint
         poetry run task formatter
         poetry run task security
+
+name: CI Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  # Równoległe grupowanie zadań
+  install_dependencies:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: install-dependencies
+      cancel-in-progress: true  # Opcjonalnie, aby przerywać poprzednie zadania przy nowym uruchomieniu
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Cache build venv
+        id: cached-poetry-dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pypoetry
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/pyproject.toml') }}
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          
+      - name: Install dependencies with Poetry
+        run: poetry install
+
+  # Równoległe testy statyczne
+  lint:
+    runs-on: ubuntu-latest
+    needs: install_dependencies  # Czeka na zakończenie zadania instalacji zależności
+    concurrency:
+      group: static-tests
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Run linter
+        run: |
+          poetry run flake8 .
+
+  formatter:
+    runs-on: ubuntu-latest
+    needs: install_dependencies  # Czeka na zakończenie zadania instalacji zależności
+    concurrency:
+      group: static-tests
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Run formatter
+        run: |
+          poetry run black --check .
+
+  security:
+    runs-on: ubuntu-latest
+    needs: install_dependencies  # Czeka na zakończenie zadania instalacji zależności
+    concurrency:
+      group: static-tests
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Run security checks
+        run: |
+          poetry run bandit -r .
+
+  # Testy jednostkowe
+  unit_tests:
+    runs-on: ubuntu-latest
+    needs: install_dependencies  # Czeka na zakończenie zadania instalacji zależności
+    concurrency:
+      group: unit-tests
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Run unit tests
+        run: |
+          poetry run pytest tests/
+
