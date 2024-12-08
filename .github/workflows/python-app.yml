@@ -10,86 +10,125 @@ permissions:
   contents: read
 
 jobs:
-  # Instalacja Poetry
-  install-poetry:
+  # Job do instalacji zależności
+  install_dependencies:
     runs-on: ubuntu-latest
-    concurrency:
-      group: install-group
-      cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
+
+      # Instalacja Pythona 3.13
       - name: Set up Python 3.13
         uses: actions/setup-python@v3
         with:
           python-version: "3.13"
+
+      # Instalacja Poetry
       - name: Install Poetry
         run: |
           curl -sSL https://install.python-poetry.org | python3 -
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          export PATH="$HOME/.local/bin:$PATH"
 
-  # Instalacja zależności projektowych
-  install-dependencies:
+      # Instalacja zależności przy pomocy Poetry
+      - name: Install dependencies
+        run: |
+          poetry install --no-interaction
+
+  # Job do testów statycznych (Linter, Formatter, Security)
+  static_checks:
     runs-on: ubuntu-latest
-    concurrency:
-      group: install-group
-      cancel-in-progress: true
-    needs: install-poetry
+    needs: install_dependencies  # Zależy od joba install_dependencies
     steps:
       - uses: actions/checkout@v4
-      - name: Cache poetry dependencies
-        id: cached-poetry-dependencies
-        uses: actions/cache@v3
+
+      # Ustawienie Pythona 3.13
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v3
         with:
-          path: ~/.cache/pypoetry
-          key: ${{ runner.os }}-poetry-cache
-          restore-keys: |
-            ${{ runner.os }}-poetry-cache
-      - name: Install dependencies using poetry
+          python-version: "3.13"
+
+      # Instalacja Poetry
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          export PATH="$HOME/.local/bin:$PATH"
+
+      # Instalacja zależności
+      - name: Install dependencies
         run: |
           poetry install --no-interaction
 
-  # Testy statyczne: linter, formatter, security
-  static-tests:
-    runs-on: ubuntu-latest
-    concurrency:
-      group: static-tests-group
-      cancel-in-progress: true
-    needs: install-dependencies
-    strategy:
-      matrix:
-        test: [linter, formatter, security]
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install dependencies using poetry
+      # Linter z flake8
+      - name: Lint with flake8
         run: |
-          poetry install --no-interaction
-      - name: Run linter
-        if: matrix.test == 'linter'
-        run: |
-          poetry run flake8 .
-      - name: Run formatter
-        if: matrix.test == 'formatter'
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+      # Testy formatowania kodu
+      - name: Check formatting with black
         run: |
           poetry run black --check .
-      - name: Run security checks
-        if: matrix.test == 'security'
-        run: |
-          poetry run bandit -r .
 
-  # Testy jednostkowe
-  unit-tests:
+      # Testy bezpieczeństwa
+      - name: Security check with safety
+        run: |
+          poetry run safety check
+
+  # Job do testów jednostkowych
+  unit_tests:
     runs-on: ubuntu-latest
-    needs: install-dependencies
-    concurrency:
-      group: unit-tests-group
-      cancel-in-progress: true
+    needs: install_dependencies  # Zależy od joba install_dependencies
     steps:
       - uses: actions/checkout@v4
-      - name: Install dependencies using poetry
+
+      # Ustawienie Pythona 3.13
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.13"
+
+      # Instalacja Poetry
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          export PATH="$HOME/.local/bin:$PATH"
+
+      # Instalacja zależności
+      - name: Install dependencies
         run: |
           poetry install --no-interaction
-      - name: Run unit tests
-        run: |
-          poetry run pytest --maxfail=1 --disable-warnings -q
 
- 
+      # Uruchamianie testów jednostkowych z pytest
+      - name: Run unit tests with pytest
+        run: |
+          poetry run pytest
+
+  # Job do uruchomienia innych zadań (np. formatter, security)
+  poetry_tasks:
+    runs-on: ubuntu-latest
+    needs: install_dependencies  # Zależy od joba install_dependencies
+    steps:
+      - uses: actions/checkout@v4
+
+      # Ustawienie Pythona 3.13
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.13"
+
+      # Instalacja Poetry
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          export PATH="$HOME/.local/bin:$PATH"
+
+      # Instalacja zależności
+      - name: Install dependencies
+        run: |
+          poetry install --no-interaction
+
+      # Uruchamianie innych zadań
+      - name: Run Poetry tasks (lint, formatter, security)
+        run: |
+          poetry run task lint
+          poetry run task formatter
+          poetry run task security
