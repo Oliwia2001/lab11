@@ -10,119 +10,83 @@ permissions:
   contents: read
 
 jobs:
-  install_dependencies:
+  setup_dependencies:
     runs-on: ubuntu-latest
+    concurrency:
+      group: setup-dependencies-${{ github.ref }}
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
-
-      # Instalacja Pythona 3.13
       - name: Set up Python 3.13
         uses: actions/setup-python@v3
         with:
           python-version: "3.13"
-
-      # Instalacja Poetry
+      - name: Cache Poetry venv
+        id: cached-poetry-dependencies
+        uses: actions/cache@v3
+        with:
+          path: /home/runner/work/<path>/example-app/.venv
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
       - name: Install Poetry
         run: |
           curl -sSL https://install.python-poetry.org | python3 -
-          export PATH="$HOME/.local/bin:$PATH"
-
-      # Instalacja zależności przy pomocy Poetry
-      - name: Install dependencies
+          export PATH=$PATH:$HOME/.local/bin
+      - name: Install project dependencies
         run: |
-          cd laboratorium11  # Przejście do katalogu, gdzie znajduje się pyproject.toml
-          poetry install --no-interaction
+          cd example-app/
+          poetry install --no-root
 
-  static_checks:
+  linting_formatting_security:
     runs-on: ubuntu-latest
-    needs: install_dependencies
+    concurrency:
+      group: linting-formatting-security-${{ github.ref }}
+      cancel-in-progress: true
+    needs: setup_dependencies
     steps:
       - uses: actions/checkout@v4
-
-      # Ustawienie Pythona 3.13
       - name: Set up Python 3.13
         uses: actions/setup-python@v3
         with:
           python-version: "3.13"
-
-      # Instalacja Poetry
-      - name: Install Poetry
-        run: |
-          curl -sSL https://install.python-poetry.org | python3 -
-          export PATH="$HOME/.local/bin:$PATH"
-
-      # Instalacja zależności
       - name: Install dependencies
         run: |
-          cd laboratorium11  # Przejście do katalogu, gdzie znajduje się pyproject.toml
-          poetry install --no-interaction
-
-      # Linter z flake8
+          python -m pip install --upgrade pip
+          pip install flake8 pytest
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
       - name: Lint with flake8
         run: |
-          cd laboratorium11  # Upewnij się, że jesteś w odpowiednim katalogu
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
           flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-
-      # Testy formatowania kodu
-      - name: Check formatting with black
+      - name: Formatter
         run: |
-          cd laboratorium11  # Upewnij się, że jesteś w odpowiednim katalogu
-          poetry run black --check .
-
-      # Testy bezpieczeństwa
-      - name: Security check with safety
+          poetry run task formatter
+      - name: Security check
         run: |
-          cd laboratorium11  # Upewnij się, że jesteś w odpowiednim katalogu
-          poetry run safety check
+          poetry run task security
 
   unit_tests:
     runs-on: ubuntu-latest
-    needs: install_dependencies
+    concurrency:
+      group: unit-tests-${{ github.ref }}
+      cancel-in-progress: true
+    needs: setup_dependencies
     steps:
       - uses: actions/checkout@v4
-
-      # Ustawienie Pythona 3.13
       - name: Set up Python 3.13
         uses: actions/setup-python@v3
         with:
           python-version: "3.13"
-
-      # Instalacja Poetry
-      - name: Install Poetry
-        run: |
-          curl -sSL https://install.python-poetry.org | python3 -
-          export PATH="$HOME/.local/bin:$PATH"
-
-      # Instalacja zależności
       - name: Install dependencies
         run: |
-          cd laboratorium11  # Przejście do katalogu, gdzie znajduje się pyproject.toml
-          poetry install --no-interaction
-
-      # Uruchamianie testów jednostkowych z pytest
-      - name: Run unit tests with pytest
-        run: |
-          cd laboratorium11  # Upewnij się, że jesteś w odpowiednim katalogu
-          poetry run pytest
-
-  poetry_tasks:
-    runs-on: ubuntu-latest
-    needs: install_dependencies
-    steps:
-      - uses: actions/checkout@v4
-
-      # Ustawienie Pythona 3.13
-      - name: Set up Python 3.13
-        uses: actions/setup-python@v3
-        with:
-          python-version: "3.13"
-
-      # Instalacja Poetry
-      - name: Install Poetry
+          python -m pip install --upgrade pip
+          pip install flake8 pytest
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Install Poetry and project dependencies
         run: |
           curl -sSL https://install.python-poetry.org | python3 -
-          export PATH="$HOME/.local/bin:$PATH"
-
-      # Instalacja zależności
-      - name: Instal
+          export PATH=$PATH:$HOME/.local/bin
+          cd example-app/
+          poetry install --no-root
+      - name: Run unit tests
+        run: |
+          poetry run task test
