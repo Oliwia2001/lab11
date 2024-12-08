@@ -38,3 +38,10 @@ jobs:
       run: |
         cd example-app/
         curl -sSL https://install.python-poetry.org | python3 -
+        export PATH=$PATH:$HOME/.local/bin
+        poetry debug info
+        poetry install --no-root
+        poetry run task test
+        poetry run task lint
+        poetry run task formatter
+        poetry run task security
