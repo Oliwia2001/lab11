@@ -194,3 +194,6 @@ jobs:
     - name: unittests
       run: |
         poetry run task test
+
+    matrix:
+        os: [ubuntu-latest, windows-latest]
