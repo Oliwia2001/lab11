@@ -195,9 +195,4 @@ jobs:
       run: |
         poetry run task test
 
-    matrix:
-        os: [ubuntu-latest, windows-latest]
-
-  defaults:
-  run:
-    shell: bash
+  
